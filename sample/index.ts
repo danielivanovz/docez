@@ -1,3 +1,4 @@
+/* doc */
 function one(n: number): number {
   if (n === 0 || n === 1) {
     return 1;
@@ -6,7 +7,8 @@ function one(n: number): number {
   return n * one(n - 1);
 }
 
-const ƒ = (n: number): number => {
+/* doc */
+const two = (n: number): number => {
   let memo = [];
 
   memo[0] = 1;
@@ -22,4 +24,4 @@ const ƒ = (n: number): number => {
 const lambda = one(5);
 
 /* docz */
-const phi = ƒ(5);
+const phi = two(5);
