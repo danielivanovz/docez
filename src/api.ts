@@ -4,11 +4,11 @@ import { CompletionConfig, CompletionResponse } from './types'
 export const config = (functionText: string): CompletionConfig => ({
     url: 'https://api.openai.com/v1/completions',
     model: 'text-davinci-003',
-    temperature: 0.665,
-    max_tokens: 512,
+    temperature: 0.680,
+    max_tokens: 1024,
     top_p: 1,
     stop: ['*/'],
-    prompt: promptify(functionText)
+    prompt: promptify(functionText).replace(/\s+/g, '')
 })
 
 export async function fetchCompletion(config: CompletionConfig): Promise<string> {

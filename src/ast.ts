@@ -1,74 +1,80 @@
 import ts from 'typescript'
 import fs from 'fs'
-
 import { config, fetchCompletion } from './api'
 import { IDENTIFIER_REGEX } from './constants'
+import { Replacement } from './types'
 
-const isFunctionDeclaration = (node: ts.Node): node is ts.FunctionDeclaration => {
-    return node.kind === ts.SyntaxKind.FunctionDeclaration || node.kind === ts.SyntaxKind.VariableStatement
+const generateDocForFunction = async (functionText: string): Promise<string> => fetchCompletion(config(functionText))
+const readFile = (filePath: string): string => fs.readFileSync(filePath, 'utf-8')
+const writeFile = (filePath: string, content: string): void => fs.writeFileSync(filePath, content)
+const isFunctionDeclaration = (node: ts.Node): node is ts.FunctionDeclaration =>
+    [
+        ts.SyntaxKind.FunctionDeclaration,
+        ts.SyntaxKind.FunctionExpression,
+        ts.SyntaxKind.ArrowFunction,
+        ts.SyntaxKind.MethodDeclaration,
+        ts.SyntaxKind.VariableStatement
+    ].includes(node.kind)
+
+const applyReplacements = (content: string, replacements: Array<Replacement>): string => {
+    return replacements
+        .sort((a, b) => b.startPos - a.startPos)
+        .reduce((acc, r) => acc.substring(0, r.startPos) + r.replacement + acc.substring(r.endPos), content)
 }
 
-const readFileContent = (filePath: string): string => {
-    return fs.readFileSync(filePath, 'utf-8')
+const traverseNodes = async (node: ts.Node, callback: Function, ...args: any[]) => {
+    await callback(node, ...args)
+    for (const child of node.getChildren()) {
+        await traverseNodes(child, callback, ...args)
+    }
 }
 
-const getFunctionTextFromNode = (node: ts.Node, sourceFile: ts.SourceFile): string | null => {
-    const nodeText = node.getFullText(sourceFile)
-    const commentMatch = IDENTIFIER_REGEX.exec(nodeText)
-    if (!commentMatch) return null
-    return nodeText.slice(commentMatch.index + commentMatch[0].length).trim()
+export const processFileForDocs = async (filePath: string, dry: boolean) => {
+    let content = readFile(filePath)
+    const sourceFile = ts.createSourceFile(filePath, content, ts.ScriptTarget.Latest, true)
+    const replacements: Array<Replacement> = []
+
+    await traverseNodes(sourceFile, processFunctionNodeForDocs, sourceFile, dry, replacements)
+
+    if (!dry) {
+        content = applyReplacements(content, replacements)
+        writeFile(filePath, content)
+    }
 }
 
-const generateDocumentationForFunction = async (functionText: string): Promise<string> => {
-    const generatedDoc = await fetchCompletion(config(functionText))
-    return `${generatedDoc}\n${functionText}`
-}
+const getDocCommentFromNode = (node: ts.Node, sourceFile: ts.SourceFile): ts.CommentRange | null => {
+    const comments = ts.getLeadingCommentRanges(sourceFile.text, node.pos)
+    if (!comments) return null
 
-const applyReplacementsToContent = (content: string, replacements: Array<{ original: string; replacement: string }>): string => {
-    replacements.forEach(r => {
-        if (content.includes(r.original)) {
-            content = content.replace(r.original, r.replacement)
-        } else {
-            console.warn('Failed to replace', r.original)
+    for (const comment of comments) {
+        if (sourceFile.text.substring(comment.pos, comment.end).match(IDENTIFIER_REGEX)) {
+            return comment
         }
-    })
-    return content
+    }
+
+    return null
 }
 
-const processNode = async (node: ts.Node, sourceFile: ts.SourceFile, dry: boolean, replacements: Array<{ original: string; replacement: string }>): Promise<void> => {
+const processFunctionNodeForDocs = async (
+    node: ts.Node,
+    sourceFile: ts.SourceFile,
+    dry: boolean,
+    replacements: Array<Replacement>
+): Promise<void> => {
     if (!isFunctionDeclaration(node)) return
-    const functionText = getFunctionTextFromNode(node, sourceFile)
-    if (!functionText) return
 
+    const comment = getDocCommentFromNode(node, sourceFile)
+    if (!comment) return
+
+    const functionText = node.getFullText(sourceFile).trim()
     if (dry) {
-        console.log('Function', functionText)
+        console.log('Parsed function:', functionText)
         return
     }
 
-    const generatedDoc = await generateDocumentationForFunction(functionText)
-    const nodeText = node.getFullText(sourceFile)
     replacements.push({
-        original: nodeText,
-        replacement: generatedDoc
+        startPos: comment.pos,
+        endPos: comment.end,
+        replacement: await generateDocForFunction(functionText)
     })
-}
-
-export const processFile = async (filePath: string, dry: boolean) => {
-    let content = readFileContent(filePath)
-    const sourceFile = ts.createSourceFile(filePath, content, ts.ScriptTarget.Latest, true)
-    const replacements: Array<{ original: string; replacement: string }> = []
-
-    const processChildNodes = async (node: ts.Node) => {
-        await processNode(node, sourceFile, dry, replacements)
-        for (const child of node.getChildren()) {
-            await processChildNodes(child)
-        }
-    }
-
-    await processChildNodes(sourceFile)
-
-    if (!dry) {
-        content = applyReplacementsToContent(content, replacements)
-        fs.writeFileSync(filePath, content)
-    }
 }

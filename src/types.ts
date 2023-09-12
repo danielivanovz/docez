@@ -12,3 +12,5 @@ export interface CompletionConfig {
 export interface CompletionResponse {
     choices: Array<{ text: string }>
 }
+
+export type Replacement = { startPos: number; endPos: number; replacement: string }

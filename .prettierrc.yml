@@ -1,7 +1,7 @@
 tabWidth: 4
 semi: false
 singleQuote: true
-printWidth: 200
+printWidth: 140
 arrowParens: 'avoid'
 bracketSpacing: true
 useTabs: false
