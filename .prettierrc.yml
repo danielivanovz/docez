@@ -1,0 +1,8 @@
+tabWidth: 4
+semi: false
+singleQuote: true
+printWidth: 200
+arrowParens: 'avoid'
+bracketSpacing: true
+useTabs: false
+trailingComma: 'none'
