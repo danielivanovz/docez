@@ -34,5 +34,10 @@ export const ignorables = [
     'pnpm-lock.yaml',
     'pnpm-workspace.yaml',
     "README.md",
-    ".DS_Store"
+    ".DS_Store",
+    ".git",
+    ".prettierrc.yml",
+    ".gitignore",
+    ".env",
+    "bun.lockb"
 ]
